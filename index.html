@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow">
+    <title>RobCo Industries (TM) Termlink</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="crt-monitor">
+    <header>
+        <span>ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL</span>
+        <span id="sys-mode">MODE: PUBLIC</span>
+    </header>
+
+    <main id="public-interface">
+        <p>Welcome to RobCo Industries (TM) Termlink.</p>
+        <p>Password Accepted.</p>
+        <br>
+        <p>> SELECT EXTERNAL DRIVE OR FILE:</p>
+
+        <ul class="menu-list" id="terminal-menu">
+            </ul>
+
+        <div class="content-area" id="output-screen"></div>
+    </main>
+
+    <!-- ADMIN / SETUP INTERFACE (Hidden by default) -->
+    <main id="admin-interface" class="hidden">
+        <p>> SYSTEM OVERRIDE ACCEPTED. WELCOME, OVERSEER.</p>
+        <br>
+        
+        <div style="margin-bottom: 15px;">
+            <label>TARGET DESTINATION:</label>
+            <select id="target-dir" style="background:#000; color:var(--robco-green); border:2px solid var(--robco-green); font-family:var(--terminal-font-family); font-size:20px; padding:5px; width:100%;"></select>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label>ENTRY TYPE:</label>
+            <select id="entry-type" style="background:#000; color:var(--robco-green); border:2px solid var(--robco-green); font-family:var(--terminal-font-family); font-size:20px; padding:5px; width:100%;">
+                <option value="FILE">TEXT FILE (.TXT / .LOG)</option>
+                <option value="AUDIO">AUDIO LOG / HOLOTAPE (.MP3 / .WAV)</option>
+                <option value="VIDEO">VIDEO RECORDING (.MP4 / .WEBM)</option>
+                <option value="DIRECTORY">DIRECTORY (SUB-FOLDER)</option>
+            </select>
+        </div>
+
+        <label>TITLE / HOLOTAPE NAME:</label>
+        <input type="text" id="new-title" placeholder="e.g., DISTRESS_SIGNAL or OVERSEER_BROADCAST">
+        
+        <div id="media-input-group" style="display:none;">
+            <label>MEDIA FILE PATH OR URL:</label>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="text" id="new-media-path" placeholder="e.g., holotapes/quinn_msg.mp3" style="margin-bottom:0; width:75%;">
+                <button type="button" onclick="document.getElementById('media-file-picker').click()" style="background:#0055aa; width:25%; font-size:18px; padding:5px;">BROWSE...</button>
+                <input type="file" id="media-file-picker" accept="audio/*,video/*,.mp3,.m4a,.wav,.mp4,.webm" style="display:none;" onchange="handleMediaBrowse(event)">
+            </div>
+            <p style="font-size:16px; color:#888; margin-top:0; margin-bottom:15px;">*Tip: Place your selected file inside your project's 'holotapes/' folder first!</p>
+        </div>
+
+        <div id="content-input-group">
+            <label>TEXT CONTENT / TRANSCRIPT (Optional for Media):</label>
+            <textarea id="new-content" rows="4" placeholder="Enter terminal text or holotape transcript here..."></textarea>
+        </div>
+        
+        <div id="admin-edit-banner" class="admin-edit-banner hidden"></div>
+        <button id="admin-save-btn" onclick="saveEntryFromAdmin()">SAVE ENTRY</button>
+        <button id="admin-cancel-edit-btn" onclick="cancelEditEntry()" class="hidden" style="background:transparent; color:var(--robco-green); border:1px solid var(--robco-green)">CANCEL EDIT</button>
+        <button onclick="toggleAdminMode()" style="background:transparent; color:var(--robco-green); border:1px solid var(--robco-green)">EXIT ADMIN</button>
+        <button onclick="factoryReset()" style="background:#aa0000; color:#fff; float:right;">FACTORY RESET</button>
+
+        <hr style="border: 1px dashed var(--robco-green); margin: 25px 0;">
+        <p style="margin-bottom:15px;">> DATA BACKUP & PORTABILITY:</p>
+        <div style="display:flex; gap:10px; margin-bottom: 20px;">
+            <button onclick="exportDatabase()" style="background:#0055aa; width:50%;">EXPORT BACKUP (.JSON)</button>
+            <button onclick="triggerImport()" style="background:#aa5500; width:50%;">IMPORT BACKUP (.JSON)</button>
+            <!-- Hidden native file picker -->
+            <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="importDatabase(event)">
+        </div>
+
+        <hr style="border: 1px dashed var(--robco-green); margin: 25px 0;">
+        <p style="margin-bottom:15px;">> MEMORY MANAGEMENT (BROWSE, ARRANGE, EDIT & DELETE):</p>
+        <ul id="admin-delete-list" class="menu-list"></ul>
+    </main>
+
+<script>
+    // Share/build switch:
+    //   false = public demo mode; admin hotkey is disabled for viewers.
+    //   true  = local editing mode; Ctrl+Shift+A opens the admin console.
+    const ENABLE_ADMIN_MODE = false;
+
+    const DEFAULT_LOGS = [
+        { id: '1', type: 'FILE', title: "PARTY_MANIFEST.TXT", content: "Guest list confirmed. Cake hydration level: 98%.\nRadiation levels: Nominal." },
+        { id: '2', type: 'FILE', title: "SECURITY_NOTICE.LOG", content: "Reminder: Do not feed the Yao Guai stationed near the refreshments." },
+        { id: '3', type: 'DIRECTORY', title: "OVERSEER_ARCHIVE", children: [
+            { id: '3-1', type: 'FILE', title: "SECRET_RECIPE.TXT", content: "Nuka-Cola Quantum ingredient list:\n- Carbonated Water\n- Caramel Color\n- Aspartame\n- Strontium-90 (for glow)" }
+        ]}
+    ];
+
+    const TERMINAL_COLS = 54;
+    const TERMINAL_ROWS = 22;
+    const PUBLIC_BODY_ROWS = 19;
+    const MENU_ITEMS_PER_PAGE = 12;
+    const FILE_TEXT_ROWS = 14;
+    const AUDIO_TEXT_ROWS = 7;
+
+    let terminalDatabase = JSON.parse(localStorage.getItem('robco_db_v2')) || DEFAULT_LOGS;
+    let navigationStack = [];
+    let adminNavigationStack = [];
+    let directoryPageIndex = 0;
+    let editingEntryPath = null;
+    let activeTypewriterTimer = null;
+    let activeTextPager = null;
+    let activeVideoOverlay = null;
+    let activeVideoElem = null;
+    let activeVideoInterval = null;
+    let activeVideoTranscript = '';
+    let activeVideoTitle = '';
+
+    const terminalSurface = document.querySelector('.crt-monitor');
+    const publicInterface = document.getElementById('public-interface');
+    const menuElement = document.getElementById('terminal-menu');
+    const outputElement = document.getElementById('output-screen');
+
+    if (terminalSurface) {
+        terminalSurface.style.setProperty('--terminal-cols', TERMINAL_COLS);
+        terminalSurface.style.setProperty('--terminal-rows', TERMINAL_ROWS);
+        terminalSurface.style.width = `${TERMINAL_COLS}ch`;
+        terminalSurface.style.height = `${TERMINAL_ROWS}em`;
+    }
+
+    // Keep the logical 54x22 terminal surface fitted to the display window.
+    function fitTerminalToWindow() {
+        if (!terminalSurface) return;
+
+        terminalSurface.style.setProperty('--terminal-scale', '1');
+
+        const viewportMargin = 16;
+        const terminalWidth = terminalSurface.offsetWidth;
+        const terminalHeight = terminalSurface.offsetHeight;
+        const availableWidth = Math.max(1, window.innerWidth - viewportMargin);
+        const availableHeight = Math.max(1, window.innerHeight - viewportMargin);
+        const scale = Math.min(availableWidth / terminalWidth, availableHeight / terminalHeight);
+
+        terminalSurface.style.setProperty('--terminal-scale', Math.max(0.1, scale).toString());
+    }
+
+    window.addEventListener('resize', fitTerminalToWindow);
+    window.addEventListener('orientationchange', fitTerminalToWindow);
+    window.addEventListener('load', fitTerminalToWindow);
+
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(fitTerminalToWindow);
+    }
+
+    // --- AUDIO SYNTHESIZER ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let humStarted = false;
+
+    function initAudio() {
+        if (!audioCtx) audioCtx = new AudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        if (!humStarted) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 60;
+            gain.gain.value = 0.015;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            humStarted = true;
+        }
+    }
+
+    function playTerminalClick() {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 700 + Math.random() * 400;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.025);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.025);
+    }
+    // -------------------------
+
+    function saveDatabase() {
+        localStorage.setItem('robco_db_v2', JSON.stringify(terminalDatabase));
+    }
+
+    function getCurrentDirectory() {
+        let current = terminalDatabase;
+        for (let index of navigationStack) {
+            current = current[index].children;
+        }
+        return current;
+    }
+
+    function setPublicMode(mode) {
+        if (!publicInterface) return;
+        publicInterface.classList.toggle('terminal-mode-menu', mode === 'menu');
+        publicInterface.classList.toggle('terminal-mode-reader', mode === 'reader');
+    }
+
+    function clearTypewriter() {
+        if (activeTypewriterTimer) {
+            clearTimeout(activeTypewriterTimer);
+            activeTypewriterTimer = null;
+        }
+    }
+
+    function stopAudioPlayback() {
+        if (window.activeAudioElem) {
+            window.activeAudioElem.pause();
+            window.activeAudioElem.removeAttribute('src');
+            window.activeAudioElem.load();
+        }
+        window.activeAudioElem = null;
+        window.activeTapeStatus = null;
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatTime(secs) {
+        if (!Number.isFinite(secs) || secs < 0) secs = 0;
+        const m = Math.floor(secs / 60);
+        const s = Math.floor(secs % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function renderMenu() {
+        clearTypewriter();
+        stopAudioPlayback();
+        activeTextPager = null;
+        setPublicMode('menu');
+        menuElement.innerHTML = '';
+        outputElement.innerHTML = '';
+
+        const currentFolder = getCurrentDirectory();
+        const menuEntries = [];
+
+        if (navigationStack.length > 0) {
+            menuEntries.push({
+                label: '> [ RETURN TO PREVIOUS DIRECTORY ]',
+                type: 'ACTION',
+                color: '#fff',
+                handler: () => {
+                    playTerminalClick();
+                    navigationStack.pop();
+                    directoryPageIndex = 0;
+                    renderMenu();
+                }
+            });
+        }
+
+        currentFolder.forEach((item, index) => {
+            if (item.type === 'DIRECTORY') {
+                menuEntries.push({
+                    label: `> + ${item.title} (DIR)`,
+                    type: 'ACTION',
+                    handler: () => {
+                        playTerminalClick();
+                        navigationStack.push(index);
+                        directoryPageIndex = 0;
+                        renderMenu();
+                    }
+                });
+            } else {
+                const prefix = (item.type === 'AUDIO') ? '♫ ' : (item.type === 'VIDEO') ? '► ' : '  ';
+                menuEntries.push({
+                    label: `> ${prefix}${item.title}`,
+                    type: 'ACTION',
+                    handler: () => handleItemSelection(item)
+                });
+            }
+        });
+
+        const totalPages = Math.max(1, Math.ceil(menuEntries.length / MENU_ITEMS_PER_PAGE));
+        directoryPageIndex = Math.min(directoryPageIndex, totalPages - 1);
+        const start = directoryPageIndex * MENU_ITEMS_PER_PAGE;
+        const visibleEntries = menuEntries.slice(start, start + MENU_ITEMS_PER_PAGE);
+
+        visibleEntries.forEach(entry => {
+            const li = document.createElement('li');
+            li.textContent = entry.label;
+            if (entry.color) li.style.color = entry.color;
+            li.onclick = entry.handler;
+            menuElement.appendChild(li);
+        });
+
+        if (totalPages > 1) {
+            const navLi = document.createElement('li');
+            navLi.className = 'menu-page-controls';
+
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'terminal-inline-btn';
+            prevBtn.textContent = '[<]';
+            prevBtn.disabled = directoryPageIndex === 0;
+            prevBtn.onclick = (event) => {
+                event.stopPropagation();
+                previousDirectoryPage();
+            };
+
+            const pageLabel = document.createElement('span');
+            pageLabel.textContent = ` PAGE ${String(directoryPageIndex + 1).padStart(2, '0')}/${String(totalPages).padStart(2, '0')} `;
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'terminal-inline-btn';
+            nextBtn.textContent = '[>]';
+            nextBtn.disabled = directoryPageIndex >= totalPages - 1;
+            nextBtn.onclick = (event) => {
+                event.stopPropagation();
+                nextDirectoryPage(totalPages);
+            };
+
+            navLi.appendChild(prevBtn);
+            navLi.appendChild(pageLabel);
+            navLi.appendChild(nextBtn);
+            menuElement.appendChild(navLi);
+        }
+    }
+
+    function previousDirectoryPage() {
+        if (directoryPageIndex > 0) {
+            playTerminalClick();
+            directoryPageIndex--;
+            renderMenu();
+        }
+    }
+
+    function nextDirectoryPage(totalPages) {
+        if (directoryPageIndex < totalPages - 1) {
+            playTerminalClick();
+            directoryPageIndex++;
+            renderMenu();
+        }
+    }
+
+    function handleItemSelection(item) {
+        initAudio();
+        playTerminalClick();
+        clearTypewriter();
+        stopAudioPlayback();
+        activeTextPager = null;
+        menuElement.innerHTML = '';
+        outputElement.innerHTML = '';
+
+        if (item.type === 'AUDIO') {
+            const audioElem = document.createElement('audio');
+            audioElem.src = item.mediaPath || '';
+            audioElem.autoplay = true;
+            audioElem.className = 'hidden-media-element';
+
+            const deck = document.createElement('div');
+            deck.className = 'holotape-deck';
+            deck.innerHTML = `
+                <div class="holotape-header">
+                    <span>HOLOTAPE READER DECK</span>
+                    <span id="tape-status">STATUS: PLAYING</span>
+                </div>
+                <div class="holotape-track">TRACK: ${escapeHtml(item.title)}</div>
+
+                <div class="holotape-bar-container">
+                    <div class="holotape-bar-fill" id="tape-progress"></div>
+                </div>
+
+                <div class="holotape-controls">
+                    <button class="holotape-btn" id="play-pause-btn" onclick="toggleHolotape()">[ PAUSE ]</button>
+                    <button class="holotape-btn" onclick="restartHolotape()">[ RESTART ]</button>
+                    <span id="tape-timer" class="deck-timer">0:00 / 0:00</span>
+                </div>
+            `;
+
+            const progress = deck.querySelector('#tape-progress');
+            const timer = deck.querySelector('#tape-timer');
+            const status = deck.querySelector('#tape-status');
+            const playBtn = deck.querySelector('#play-pause-btn');
+
+            audioElem.addEventListener('loadedmetadata', () => {
+                timer.textContent = `0:00 / ${formatTime(audioElem.duration)}`;
+            });
+
+            audioElem.ontimeupdate = () => {
+                if (audioElem.duration) {
+                    const pct = (audioElem.currentTime / audioElem.duration) * 100;
+                    progress.style.width = pct + '%';
+                    timer.textContent = `${formatTime(audioElem.currentTime)} / ${formatTime(audioElem.duration)}`;
+                }
+            };
+
+            audioElem.onended = () => {
+                status.textContent = 'STATUS: STOPPED';
+                playBtn.textContent = '[ PLAY ]';
+            };
+
+            audioElem.play().catch(() => {
+                status.textContent = 'STATUS: STANDBY';
+                playBtn.textContent = '[ PLAY ]';
+            });
+
+            window.activeAudioElem = audioElem;
+            window.activeTapeStatus = status;
+
+            openPagedText({
+                title: `TRANSCRIPT: ${item.title}`,
+                text: item.content || 'No transcript data.',
+                rowsPerPage: AUDIO_TEXT_ROWS,
+                prefixNodes: [deck, audioElem]
+            });
+        } else if (item.type === 'VIDEO') {
+            openVideoPlayer(item);
+        } else {
+            openPagedText({
+                title: item.title,
+                text: item.content || 'No text data.',
+                rowsPerPage: FILE_TEXT_ROWS,
+                prefixNodes: []
+            });
+        }
+    }
+
+    function wrapTextLine(rawLine, width) {
+        const line = String(rawLine).replace(/\t/g, '    ');
+        if (line.length === 0) return [''];
+
+        const wrapped = [];
+        let remaining = line;
+
+        while (remaining.length > width) {
+            let breakAt = remaining.lastIndexOf(' ', width);
+            if (breakAt <= 0) breakAt = width;
+
+            wrapped.push(remaining.slice(0, breakAt).trimEnd());
+            remaining = remaining.slice(breakAt).trimStart();
+        }
+
+        wrapped.push(remaining);
+        return wrapped;
+    }
+
+    function paginateTerminalText(text, rowsPerPage) {
+        const normalized = String(text || 'No text data.').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = [];
+
+        normalized.split('\n').forEach(line => {
+            lines.push(...wrapTextLine(line, TERMINAL_COLS));
+        });
+
+        if (lines.length === 0) lines.push('');
+
+        const pages = [];
+        for (let i = 0; i < lines.length; i += rowsPerPage) {
+            pages.push(lines.slice(i, i + rowsPerPage).join('\n'));
+        }
+
+        return pages.length ? pages : [''];
+    }
+
+    function openPagedText({ title, text, rowsPerPage, prefixNodes = [] }) {
+        clearTypewriter();
+        setPublicMode('reader');
+        menuElement.innerHTML = '';
+        outputElement.innerHTML = '';
+
+        activeTextPager = {
+            title,
+            pages: paginateTerminalText(text, rowsPerPage),
+            pageIndex: 0,
+            rowsPerPage,
+            prefixNodes
+        };
+
+        renderCurrentTextPage();
+    }
+
+    function renderCurrentTextPage() {
+        if (!activeTextPager) return;
+        clearTypewriter();
+        outputElement.innerHTML = '';
+
+        activeTextPager.prefixNodes.forEach(node => outputElement.appendChild(node));
+
+        const pager = document.createElement('section');
+        pager.className = 'terminal-pager';
+        pager.style.setProperty('--page-text-rows', activeTextPager.rowsPerPage);
+
+        const titleLine = document.createElement('div');
+        titleLine.className = 'terminal-pager-title';
+        titleLine.textContent = `> ${activeTextPager.title}`;
+
+        const textNode = document.createElement('pre');
+        textNode.className = 'terminal-page-text';
+
+        const meta = document.createElement('div');
+        meta.className = 'terminal-page-meta';
+        meta.textContent = `PAGE ${String(activeTextPager.pageIndex + 1).padStart(2, '0')} / ${String(activeTextPager.pages.length).padStart(2, '0')}`;
+
+        const controls = document.createElement('div');
+        controls.className = 'terminal-pager-controls';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'holotape-btn';
+        prevBtn.textContent = '[<]';
+        prevBtn.disabled = activeTextPager.pageIndex === 0;
+        prevBtn.onclick = previousTextPage;
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'holotape-btn';
+        nextBtn.textContent = '[>]';
+        nextBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
+        nextBtn.onclick = nextTextPage;
+
+        const continueBtn = document.createElement('button');
+        continueBtn.className = 'holotape-btn';
+        continueBtn.textContent = activeTextPager.pageIndex >= activeTextPager.pages.length - 1 ? '[ EOF ]' : '[ CONTINUE ]';
+        continueBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
+        continueBtn.onclick = nextTextPage;
+
+        const returnBtn = document.createElement('button');
+        returnBtn.className = 'holotape-btn';
+        returnBtn.textContent = '[ RETURN ]';
+        returnBtn.onclick = () => {
+            playTerminalClick();
+            renderMenu();
+        };
+
+        controls.appendChild(prevBtn);
+        controls.appendChild(nextBtn);
+        controls.appendChild(continueBtn);
+        controls.appendChild(returnBtn);
+
+        pager.appendChild(titleLine);
+        pager.appendChild(textNode);
+        pager.appendChild(meta);
+        pager.appendChild(controls);
+        outputElement.appendChild(pager);
+
+        typeWriterEffect(activeTextPager.pages[activeTextPager.pageIndex], textNode);
+    }
+
+    function previousTextPage() {
+        if (!activeTextPager || activeTextPager.pageIndex <= 0) return;
+        playTerminalClick();
+        activeTextPager.pageIndex--;
+        renderCurrentTextPage();
+    }
+
+    function nextTextPage() {
+        if (!activeTextPager || activeTextPager.pageIndex >= activeTextPager.pages.length - 1) return;
+        playTerminalClick();
+        activeTextPager.pageIndex++;
+        renderCurrentTextPage();
+    }
+
+    // Helper functions for custom Holotape buttons
+    function toggleHolotape() {
+        playTerminalClick();
+        const btn = document.getElementById('play-pause-btn');
+        if (window.activeAudioElem && btn) {
+            if (window.activeAudioElem.paused) {
+                window.activeAudioElem.play();
+                btn.textContent = '[ PAUSE ]';
+                if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PLAYING';
+            } else {
+                window.activeAudioElem.pause();
+                btn.textContent = '[ PLAY ]';
+                if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PAUSED';
+            }
+        }
+    }
+
+    function restartHolotape() {
+        playTerminalClick();
+        const btn = document.getElementById('play-pause-btn');
+        if (window.activeAudioElem && btn) {
+            window.activeAudioElem.currentTime = 0;
+            window.activeAudioElem.play();
+            btn.textContent = '[ PAUSE ]';
+            if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PLAYING';
+        }
+    }
+
+    function typeWriterEffect(text, targetNode) {
+        clearTypewriter();
+        targetNode.textContent = '';
+        let i = 0;
+
+        function type() {
+            if (i < text.length) {
+                const char = text.charAt(i);
+                targetNode.textContent += char;
+                if (char.trim() !== '') playTerminalClick();
+                i++;
+                activeTypewriterTimer = setTimeout(type, 18);
+            } else {
+                activeTypewriterTimer = null;
+            }
+        }
+
+        type();
+    }
+
+    function openVideoPlayer(item) {
+        activeVideoTranscript = item.content || '';
+        activeVideoTitle = item.title || 'VIDEO RECORDING';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'video-fullscreen';
+        overlay.innerHTML = `
+            <div class="video-frame-wrap">
+                <video id="active-video-player" class="robco-video-screen" preload="metadata"></video>
+            </div>
+            <div class="video-control-deck">
+                <div class="video-status-line">
+                    <span>VIDEO READER: ${escapeHtml(activeVideoTitle)}</span>
+                    <span id="video-status">STATUS: PLAYING</span>
+                </div>
+                <div class="holotape-bar-container video-progress-wrap">
+                    <div class="holotape-bar-fill" id="video-progress"></div>
+                </div>
+                <div class="holotape-controls video-controls">
+                    <button class="holotape-btn" id="video-play-btn" onclick="toggleVideoPlayback()">[ PAUSE ]</button>
+                    <button class="holotape-btn" onclick="stopVideoPlayback()">[ STOP ]</button>
+                    <button class="holotape-btn" onclick="closeVideoPlayback()">[ EXIT ]</button>
+                    <span id="video-timer" class="deck-timer">0:00 / 0:00</span>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        activeVideoOverlay = overlay;
+        activeVideoElem = overlay.querySelector('#active-video-player');
+        activeVideoElem.src = item.mediaPath || '';
+        activeVideoElem.controls = false;
+        activeVideoElem.autoplay = true;
+        activeVideoElem.playsInline = false;
+
+        const status = overlay.querySelector('#video-status');
+        const timer = overlay.querySelector('#video-timer');
+        const progress = overlay.querySelector('#video-progress');
+        const playBtn = overlay.querySelector('#video-play-btn');
+
+        const updateVideoDeck = () => {
+            if (!activeVideoElem) return;
+            const duration = activeVideoElem.duration || 0;
+            const current = activeVideoElem.currentTime || 0;
+            timer.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+            progress.style.width = duration ? `${(current / duration) * 100}%` : '0%';
+        };
+
+        activeVideoElem.addEventListener('loadedmetadata', updateVideoDeck);
+        activeVideoElem.addEventListener('timeupdate', updateVideoDeck);
+        activeVideoElem.addEventListener('ended', () => {
+            status.textContent = 'STATUS: STOPPED';
+            playBtn.textContent = '[ PLAY ]';
+            updateVideoDeck();
+        });
+
+        activeVideoInterval = setInterval(updateVideoDeck, 250);
+
+        activeVideoElem.play().catch(() => {
+            status.textContent = 'STATUS: STANDBY';
+            playBtn.textContent = '[ PLAY ]';
+        });
+
+        if (overlay.requestFullscreen) {
+            overlay.requestFullscreen().catch(() => {});
+        }
+    }
+
+    function toggleVideoPlayback() {
+        playTerminalClick();
+        if (!activeVideoElem) return;
+
+        const status = activeVideoOverlay.querySelector('#video-status');
+        const playBtn = activeVideoOverlay.querySelector('#video-play-btn');
+
+        if (activeVideoElem.paused || activeVideoElem.ended) {
+            activeVideoElem.play();
+            status.textContent = 'STATUS: PLAYING';
+            playBtn.textContent = '[ PAUSE ]';
+        } else {
+            activeVideoElem.pause();
+            status.textContent = 'STATUS: PAUSED';
+            playBtn.textContent = '[ PLAY ]';
+        }
+    }
+
+    function stopVideoPlayback() {
+        playTerminalClick();
+        if (!activeVideoElem) return;
+
+        const status = activeVideoOverlay.querySelector('#video-status');
+        const playBtn = activeVideoOverlay.querySelector('#video-play-btn');
+
+        activeVideoElem.pause();
+        activeVideoElem.currentTime = 0;
+        status.textContent = 'STATUS: STOPPED';
+        playBtn.textContent = '[ PLAY ]';
+    }
+
+    function closeVideoPlayback() {
+        playTerminalClick();
+
+        if (activeVideoInterval) {
+            clearInterval(activeVideoInterval);
+            activeVideoInterval = null;
+        }
+
+        if (activeVideoElem) {
+            activeVideoElem.pause();
+            activeVideoElem.removeAttribute('src');
+            activeVideoElem.load();
+        }
+
+        if (activeVideoOverlay) {
+            activeVideoOverlay.remove();
+        }
+
+        activeVideoElem = null;
+        activeVideoOverlay = null;
+
+        if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+        }
+
+        if (activeVideoTranscript.trim()) {
+            openPagedText({
+                title: `TRANSCRIPT: ${activeVideoTitle}`,
+                text: activeVideoTranscript,
+                rowsPerPage: FILE_TEXT_ROWS,
+                prefixNodes: []
+            });
+        } else {
+            renderMenu();
+        }
+    }
+
+    function updateEntryInputVisibility(type) {
+        const contentGroup = document.getElementById('content-input-group');
+        const mediaGroup = document.getElementById('media-input-group');
+        contentGroup.style.display = (type === 'DIRECTORY') ? 'none' : 'block';
+        mediaGroup.style.display = (type === 'AUDIO' || type === 'VIDEO') ? 'block' : 'none';
+    }
+
+    document.getElementById('entry-type').addEventListener('change', function(e) {
+        updateEntryInputVisibility(e.target.value);
+    });
+
+    document.getElementById('target-dir').addEventListener('change', function(e) {
+        if (editingEntryPath) return;
+        adminNavigationStack = e.target.value === 'ROOT' ? [] : JSON.parse(e.target.value);
+        renderAdminDeleteList();
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+
+        if (ENABLE_ADMIN_MODE && event.ctrlKey && event.shiftKey && (event.key === 'A' || event.key === 'a')) {
+            event.preventDefault();
+            toggleAdminMode();
+            return;
+        }
+
+        if (activeVideoOverlay) {
+            if (event.key === 'Escape') closeVideoPlayback();
+            if (event.key === ' ') {
+                event.preventDefault();
+                toggleVideoPlayback();
+            }
+            return;
+        }
+
+        if (activeTextPager && !document.getElementById('public-interface').classList.contains('hidden')) {
+            if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+                event.preventDefault();
+                nextTextPage();
+            } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+                event.preventDefault();
+                previousTextPage();
+            } else if (event.key === 'Escape') {
+                renderMenu();
+            }
+        }
+    });
+
+    function toggleAdminMode() {
+        if (!ENABLE_ADMIN_MODE) return;
+
+        const pub = document.getElementById('public-interface');
+        const adm = document.getElementById('admin-interface');
+        const modeLabel = document.getElementById('sys-mode');
+
+        pub.classList.toggle('hidden');
+        adm.classList.toggle('hidden');
+
+        if (adm.classList.contains('hidden')) {
+            cancelEditEntry(true);
+            modeLabel.textContent = 'MODE: PUBLIC';
+            navigationStack = [];
+            directoryPageIndex = 0;
+            renderMenu();
+        } else {
+            modeLabel.textContent = 'MODE: OVERSEER ADMIN';
+            clearTypewriter();
+            stopAudioPlayback();
+            cancelEditEntry(true);
+            adminNavigationStack = [];
+            populateDirectoryDropdown();
+            syncTargetDropdownToAdminPath();
+            renderAdminDeleteList();
+        }
+    }
+
+    function populateDirectoryDropdown() {
+        const select = document.getElementById('target-dir');
+        select.innerHTML = '<option value="ROOT">[ ROOT DIRECTORY ]</option>';
+
+        function scanDirs(nodes, currentPath, indices) {
+            nodes.forEach((node, idx) => {
+                if (node.type === 'DIRECTORY') {
+                    const newPath = currentPath ? `${currentPath} / ${node.title}` : node.title;
+                    const newIndices = [...indices, idx];
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify(newIndices);
+                    opt.textContent = `📁 ${newPath}`;
+                    select.appendChild(opt);
+                    if (node.children && node.children.length > 0) scanDirs(node.children, newPath, newIndices);
+                }
+            });
+        }
+        scanDirs(terminalDatabase, '', []);
+        syncTargetDropdownToAdminPath();
+    }
+
+    function getDirectoryByIndices(indices) {
+        let current = terminalDatabase;
+        for (let idx of indices) { current = current[idx].children; }
+        return current;
+    }
+
+    function getDirectoryByPathSafe(indices) {
+        let current = terminalDatabase;
+        for (let idx of indices) {
+            if (!Array.isArray(current) || !current[idx] || !Array.isArray(current[idx].children)) return null;
+            current = current[idx].children;
+        }
+        return Array.isArray(current) ? current : null;
+    }
+
+    function getCurrentAdminDirectory() {
+        return getDirectoryByPathSafe(adminNavigationStack) || terminalDatabase;
+    }
+
+    function getAdminPathLabel(path = adminNavigationStack) {
+        if (!path || path.length === 0) return 'ROOT';
+
+        const names = [];
+        let current = terminalDatabase;
+        for (const idx of path) {
+            const node = Array.isArray(current) ? current[idx] : null;
+            if (!node) break;
+            names.push(node.title || 'UNTITLED_DIR');
+            current = Array.isArray(node.children) ? node.children : [];
+        }
+
+        return names.length ? `ROOT / ${names.join(' / ')}` : 'ROOT';
+    }
+
+    function syncTargetDropdownToAdminPath() {
+        const targetSelect = document.getElementById('target-dir');
+        if (!targetSelect || targetSelect.disabled) return;
+        targetSelect.value = adminNavigationStack.length === 0 ? 'ROOT' : JSON.stringify(adminNavigationStack);
+    }
+
+    function cancelEditBeforeAdminNavigation() {
+        if (!editingEntryPath) return true;
+        if (!confirm('Cancel the current edit and browse to another directory?')) return false;
+        cancelEditEntry(true);
+        return true;
+    }
+
+    function enterAdminDirectory(index) {
+        const currentFolder = getCurrentAdminDirectory();
+        const item = currentFolder[index];
+        if (!item || item.type !== 'DIRECTORY') return;
+        if (!cancelEditBeforeAdminNavigation()) return;
+
+        playTerminalClick();
+        adminNavigationStack.push(index);
+        syncTargetDropdownToAdminPath();
+        renderAdminDeleteList();
+    }
+
+    function adminDirectoryUp() {
+        if (adminNavigationStack.length === 0) return;
+        if (!cancelEditBeforeAdminNavigation()) return;
+
+        playTerminalClick();
+        adminNavigationStack.pop();
+        syncTargetDropdownToAdminPath();
+        renderAdminDeleteList();
+    }
+
+    function adminDirectoryRoot() {
+        if (adminNavigationStack.length === 0) return;
+        if (!cancelEditBeforeAdminNavigation()) return;
+
+        playTerminalClick();
+        adminNavigationStack = [];
+        syncTargetDropdownToAdminPath();
+        renderAdminDeleteList();
+    }
+
+    function pathsEqual(a, b) {
+        if (!a || !b || a.length !== b.length) return false;
+        return a.every((value, index) => value === b[index]);
+    }
+
+    function getNodeByPath(path) {
+        if (!path || path.length === 0) return null;
+        let current = terminalDatabase;
+        let node = null;
+
+        for (let i = 0; i < path.length; i++) {
+            node = current[path[i]];
+            if (!node) return null;
+            if (i < path.length - 1) {
+                if (!Array.isArray(node.children)) return null;
+                current = node.children;
+            }
+        }
+
+        return node;
+    }
+
+    function getParentFolderForPath(path) {
+        if (!path || path.length === 0) return null;
+        const parentPath = path.slice(0, -1);
+        return parentPath.length === 0 ? terminalDatabase : getDirectoryByIndices(parentPath);
+    }
+
+    function getNormalizedAdminTitle() {
+        return document.getElementById('new-title').value.trim().toUpperCase().replace(/\s+/g, '_');
+    }
+
+    function buildEntryFromAdminForm(existingItem = null) {
+        const type = document.getElementById('entry-type').value;
+        const contentInput = document.getElementById('new-content');
+        const mediaPathInput = document.getElementById('new-media-path');
+        const title = getNormalizedAdminTitle();
+
+        if (!title) {
+            alert('Title required.');
+            return null;
+        }
+
+        const entry = {
+            id: existingItem?.id || Date.now().toString(),
+            type,
+            title
+        };
+
+        if (type === 'DIRECTORY') {
+            entry.children = (existingItem?.type === 'DIRECTORY' && Array.isArray(existingItem.children))
+                ? existingItem.children
+                : [];
+        } else if (type === 'AUDIO' || type === 'VIDEO') {
+            if (!mediaPathInput.value.trim()) {
+                alert('Media path required.');
+                return null;
+            }
+            entry.mediaPath = mediaPathInput.value.trim();
+            entry.content = contentInput.value;
+        } else {
+            entry.content = contentInput.value || 'No data recorded.';
+        }
+
+        return entry;
+    }
+
+    function saveEntryFromAdmin() {
+        if (editingEntryPath) updateEntry();
+        else addEntry();
+    }
+
+    function resetAdminEntryForm() {
+        document.getElementById('entry-type').value = 'FILE';
+        document.getElementById('new-title').value = '';
+        document.getElementById('new-content').value = '';
+        document.getElementById('new-media-path').value = '';
+        updateEntryInputVisibility('FILE');
+    }
+
+    function setAdminEditUi(item = null) {
+        const banner = document.getElementById('admin-edit-banner');
+        const saveBtn = document.getElementById('admin-save-btn');
+        const cancelBtn = document.getElementById('admin-cancel-edit-btn');
+        const targetSelect = document.getElementById('target-dir');
+
+        if (item) {
+            banner.textContent = `> EDITING MEMORY RECORD: ${item.title} [${item.type}]`;
+            banner.classList.remove('hidden');
+            saveBtn.textContent = 'UPDATE ENTRY';
+            cancelBtn.classList.remove('hidden');
+            targetSelect.disabled = true;
+            targetSelect.title = 'Destination is locked while editing. Use Cancel Edit to create a new entry elsewhere.';
+        } else {
+            banner.textContent = '';
+            banner.classList.add('hidden');
+            saveBtn.textContent = 'SAVE ENTRY';
+            cancelBtn.classList.add('hidden');
+            targetSelect.disabled = false;
+            targetSelect.removeAttribute('title');
+        }
+    }
+
+    function beginEditEntry(index) {
+        const currentFolder = getCurrentAdminDirectory();
+        const item = currentFolder[index];
+        if (!item) return;
+
+        playTerminalClick();
+        editingEntryPath = [...adminNavigationStack, index];
+
+        const targetSelect = document.getElementById('target-dir');
+        targetSelect.value = adminNavigationStack.length === 0 ? 'ROOT' : JSON.stringify(adminNavigationStack);
+
+        document.getElementById('entry-type').value = item.type;
+        document.getElementById('new-title').value = item.title || '';
+        document.getElementById('new-content').value = item.content || '';
+        document.getElementById('new-media-path').value = item.mediaPath || '';
+        updateEntryInputVisibility(item.type);
+        setAdminEditUi(item);
+        renderAdminDeleteList();
+
+        const adminPanel = document.getElementById('admin-interface');
+        if (adminPanel) adminPanel.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditEntry(silent = false) {
+        editingEntryPath = null;
+        setAdminEditUi(null);
+        resetAdminEntryForm();
+        if (!silent) renderAdminDeleteList();
+    }
+
+    function addEntry() {
+        const targetVal = document.getElementById('target-dir').value;
+        const targetFolder = (targetVal === 'ROOT') ? terminalDatabase : getDirectoryByIndices(JSON.parse(targetVal));
+        const newObj = buildEntryFromAdminForm(null);
+        if (!newObj) return;
+
+        targetFolder.push(newObj);
+        saveDatabase();
+
+        resetAdminEntryForm();
+        alert(`${newObj.type} saved to active session.`);
+        populateDirectoryDropdown();
+        renderAdminDeleteList();
+    }
+
+    function updateEntry() {
+        const existingItem = getNodeByPath(editingEntryPath);
+        const parentFolder = getParentFolderForPath(editingEntryPath);
+        if (!existingItem || !parentFolder) {
+            alert('ERROR: Edit target no longer exists.');
+            cancelEditEntry(true);
+            renderAdminDeleteList();
+            return;
+        }
+
+        const newType = document.getElementById('entry-type').value;
+        if (existingItem.type === 'DIRECTORY'
+            && newType !== 'DIRECTORY'
+            && Array.isArray(existingItem.children)
+            && existingItem.children.length > 0
+            && !confirm('Converting this directory will erase all records inside it. Continue?')) {
+            return;
+        }
+
+        const updatedObj = buildEntryFromAdminForm(existingItem);
+        if (!updatedObj) return;
+
+        const itemIndex = editingEntryPath[editingEntryPath.length - 1];
+        parentFolder[itemIndex] = updatedObj;
+        saveDatabase();
+
+        alert(`${updatedObj.type} updated in active session.`);
+        cancelEditEntry(true);
+        populateDirectoryDropdown();
+        renderAdminDeleteList();
+    }
+
+    // --- JSON BACKUP MANAGERS ---
+    function exportDatabase() {
+        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(terminalDatabase, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute('href', dataStr);
+        downloadAnchor.setAttribute('download', 'robco_terminal_backup.json');
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        alert('Backup file downloaded to your Mac!');
+    }
+
+    function triggerImport() {
+        document.getElementById('import-file-input').click();
+    }
+
+    function importDatabase(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (Array.isArray(importedData)) {
+                    terminalDatabase = importedData;
+                    navigationStack = [];
+                    adminNavigationStack = [];
+                    directoryPageIndex = 0;
+                    cancelEditEntry(true);
+                    saveDatabase();
+                    renderMenu();
+                    populateDirectoryDropdown();
+                    renderAdminDeleteList();
+                    alert('RobCo memory stack successfully restored from backup!');
+                } else {
+                    alert('ERROR: Invalid backup file structure.');
+                }
+            } catch (err) {
+                alert('ERROR: Corrupted JSON data. Could not read file.');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
+    // --- REORDER & DELETE MANAGER ---
+    function makeAdminMiniButton(label, handler, options = {}) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.className = 'admin-mini-btn';
+        if (options.className) btn.classList.add(options.className);
+        if (options.background) btn.style.background = options.background;
+        if (options.disabled) {
+            btn.disabled = true;
+            btn.style.opacity = '0.2';
+        }
+        btn.onclick = handler;
+        return btn;
+    }
+
+    function renderAdminDeleteList() {
+        const delList = document.getElementById('admin-delete-list');
+        delList.innerHTML = '';
+
+        if (!getDirectoryByPathSafe(adminNavigationStack)) {
+            adminNavigationStack = [];
+        }
+
+        const currentFolder = getCurrentAdminDirectory();
+
+        const browserHeader = document.createElement('li');
+        browserHeader.className = 'admin-browser-header';
+        browserHeader.style.cursor = 'default';
+
+        const pathBlock = document.createElement('div');
+        pathBlock.className = 'admin-browser-path';
+
+        const pathLabel = document.createElement('div');
+        pathLabel.textContent = `BROWSING: [ ${getAdminPathLabel()} ]`;
+        pathBlock.appendChild(pathLabel);
+
+        const hintLabel = document.createElement('div');
+        hintLabel.className = 'admin-browser-hint';
+        hintLabel.textContent = 'DIRECTORIES CAN BE OPENED HERE TO EDIT NESTED RECORDS.';
+        pathBlock.appendChild(hintLabel);
+
+        const navControls = document.createElement('div');
+        navControls.className = 'admin-browser-controls';
+        navControls.appendChild(makeAdminMiniButton('UP', adminDirectoryUp, { disabled: adminNavigationStack.length === 0 }));
+        navControls.appendChild(makeAdminMiniButton('ROOT', adminDirectoryRoot, { disabled: adminNavigationStack.length === 0 }));
+
+        browserHeader.appendChild(pathBlock);
+        browserHeader.appendChild(navControls);
+        delList.appendChild(browserHeader);
+
+        if (currentFolder.length === 0) {
+            const emptyLi = document.createElement('li');
+            emptyLi.className = 'admin-empty-row';
+            emptyLi.textContent = '> NO MEMORY RECORDS IN THIS DIRECTORY.';
+            delList.appendChild(emptyLi);
+            return;
+        }
+
+        currentFolder.forEach((item, index) => {
+            const li = document.createElement('li');
+            const rowPath = [...adminNavigationStack, index];
+            if (pathsEqual(editingEntryPath, rowPath)) li.classList.add('admin-editing-row');
+            li.classList.add('admin-memory-row');
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'admin-memory-label';
+            const prefix = (item.type === 'AUDIO') ? '♫ ' : (item.type === 'VIDEO') ? '► ' : (item.type === 'DIRECTORY') ? '+ ' : '- ';
+            labelSpan.textContent = prefix + item.title;
+            li.appendChild(labelSpan);
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'admin-row-controls';
+
+            if (item.type === 'DIRECTORY') {
+                btnGroup.appendChild(makeAdminMiniButton('OPEN', () => enterAdminDirectory(index), { background: '#115511' }));
+            }
+
+            const isEditingThisRow = pathsEqual(editingEntryPath, rowPath);
+            const editBtn = makeAdminMiniButton(isEditingThisRow ? 'EDITING' : 'EDIT', () => beginEditEntry(index), { background: '#0055aa' });
+            if (isEditingThisRow) {
+                editBtn.disabled = true;
+                editBtn.style.opacity = '0.45';
+            }
+
+            const upBtn = makeAdminMiniButton('▲', () => moveEntry(index, -1), { disabled: index === 0 });
+            const downBtn = makeAdminMiniButton('▼', () => moveEntry(index, 1), { disabled: index === currentFolder.length - 1 });
+            const delBtn = makeAdminMiniButton('DEL', () => deleteEntry(index), { background: '#aa0000' });
+
+            btnGroup.appendChild(editBtn);
+            btnGroup.appendChild(upBtn);
+            btnGroup.appendChild(downBtn);
+            btnGroup.appendChild(delBtn);
+            li.appendChild(btnGroup);
+            delList.appendChild(li);
+        });
+    }
+
+    function moveEntry(index, direction) {
+        const currentFolder = getCurrentAdminDirectory();
+        const targetIndex = index + direction;
+        if (targetIndex >= 0 && targetIndex < currentFolder.length) {
+            const temp = currentFolder[index];
+            currentFolder[index] = currentFolder[targetIndex];
+            currentFolder[targetIndex] = temp;
+
+            if (editingEntryPath && pathsEqual(editingEntryPath.slice(0, -1), adminNavigationStack)) {
+                const editedIndex = editingEntryPath[editingEntryPath.length - 1];
+                if (editedIndex === index) editingEntryPath = [...adminNavigationStack, targetIndex];
+                else if (editedIndex === targetIndex) editingEntryPath = [...adminNavigationStack, index];
+            }
+
+            saveDatabase();
+            populateDirectoryDropdown();
+            syncTargetDropdownToAdminPath();
+            renderAdminDeleteList();
+        }
+    }
+
+    function deleteEntry(index) {
+        if (confirm('Permanently erase this record from memory?')) {
+            const currentFolder = getCurrentAdminDirectory();
+            const editingInThisFolder = editingEntryPath && pathsEqual(editingEntryPath.slice(0, -1), adminNavigationStack);
+            currentFolder.splice(index, 1);
+            if (editingInThisFolder) cancelEditEntry(true);
+            saveDatabase();
+            populateDirectoryDropdown();
+            syncTargetDropdownToAdminPath();
+            renderAdminDeleteList();
+        }
+    }
+
+    function factoryReset() {
+        if (confirm('WARNING: Wipe working memory and restore RobCo factory defaults?')) {
+            localStorage.removeItem('robco_db_v2');
+            terminalDatabase = JSON.parse(JSON.stringify(DEFAULT_LOGS));
+            navigationStack = [];
+            adminNavigationStack = [];
+            directoryPageIndex = 0;
+            cancelEditEntry(true);
+            renderMenu();
+            toggleAdminMode();
+        }
+    }
+
+    // --- NATIVE MAC FILE BROWSER HELPER ---
+    function handleMediaBrowse(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const cleanFileName = file.name;
+        const autoPath = `holotapes/${cleanFileName}`;
+
+        document.getElementById('new-media-path').value = autoPath;
+        event.target.value = '';
+    }
+
+    // Initial Load
+    updateEntryInputVisibility(document.getElementById('entry-type').value);
+    renderMenu();
+    fitTerminalToWindow();
+</script>
+
+</body>
+</html>

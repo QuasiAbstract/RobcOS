@@ -1,0 +1,708 @@
+@font-face {
+    font-family: 'Fixedsys Excelsior';
+    src: url('fonts/fixedsys-excelsior-301-webfont/FSEX300.woff') format('woff'),
+         url('fonts/fixedsys-excelsior-301/FSEX300.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+}
+
+:root {
+    --robco-green: #18ff62;
+    --robco-glow: rgba(24, 255, 98, 0.4);
+    --bg-color: #051109;
+
+    /* Logical RobCo terminal surface: 54 columns x 22 rows. */
+    --terminal-cols: 54;
+    --terminal-rows: 22;
+    --terminal-scale: 1;
+    --terminal-font-size: 24px;
+    --terminal-font-family: 'Fixedsys Excelsior', 'Courier New', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    background-color: #000;
+    color: var(--robco-green);
+    font-family: var(--terminal-font-family);
+    font-synthesis: none;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/*
+   The CRT is rendered at a fixed character resolution, then scaled with
+   transform by JavaScript to fit the current display window.
+
+   The usable text surface is exactly 54ch wide by 22 rows tall.
+*/
+.crt-monitor {
+    width: 54ch;
+    height: 22em;
+    box-sizing: content-box;
+
+    font-size: var(--terminal-font-size);
+    line-height: 1;
+    font-variant-ligatures: none;
+
+    background-color: var(--bg-color);
+    border: 4px solid var(--robco-green);
+    border-radius: 20px;
+    position: relative;
+    padding: 1em 1ch;
+    box-shadow: 0 0 20px var(--robco-glow), inset 0 0 30px var(--robco-glow);
+
+    overflow: hidden;
+    transform: scale(var(--terminal-scale));
+    transform-origin: center center;
+}
+
+/* Keep descendants aligned to the same terminal row rhythm by default. */
+.crt-monitor * {
+    line-height: inherit;
+}
+
+/* Scanline and flicker screen effects */
+.crt-monitor::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 10;
+    background-size: 100% 4px, 6px 100%;
+    pointer-events: none;
+}
+
+/* Terminal Header */
+header {
+    border-bottom: 2px solid var(--robco-green);
+    padding-bottom: 0.25em;
+    margin-bottom: 0.75em;
+    display: grid;
+    grid-template-columns: 1fr;
+    text-shadow: 0 0 8px var(--robco-glow);
+}
+
+header span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+main {
+    height: calc(100% - 3em);
+    overflow-x: hidden;
+    scrollbar-width: none;
+}
+
+#public-interface {
+    overflow: hidden;
+}
+
+#public-interface.terminal-mode-reader > p,
+#public-interface.terminal-mode-reader > br,
+#public-interface.terminal-mode-reader > #terminal-menu {
+    display: none;
+}
+
+#public-interface.terminal-mode-reader > #output-screen {
+    margin-top: 0;
+}
+
+#public-interface.terminal-mode-menu > #output-screen {
+    margin-top: 1em;
+}
+
+#admin-interface {
+    overflow-y: auto;
+}
+
+main::-webkit-scrollbar {
+    display: none;
+}
+
+p,
+label {
+    max-width: calc(var(--terminal-cols) * 1ch);
+}
+
+br {
+    display: block;
+    content: "";
+    height: 1em;
+}
+
+/* Interactive Navigation Links */
+.menu-list {
+    list-style: none;
+    margin-top: 1em;
+}
+
+.menu-list li {
+    height: 1em;
+    margin: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.menu-list li:hover {
+    background-color: var(--robco-green);
+    color: var(--bg-color);
+}
+
+/* Content Output Area */
+.content-area {
+    margin-top: 1em;
+    max-width: calc(var(--terminal-cols) * 1ch);
+    overflow: hidden;
+    text-shadow: 0 0 5px var(--robco-glow);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Admin Input Forms */
+textarea,
+input,
+select {
+    background: transparent;
+    border: 2px solid var(--robco-green);
+    color: var(--robco-green);
+    font-family: var(--terminal-font-family);
+    font-size: 0.85em;
+    padding: 0.25em;
+    width: 100%;
+    margin-bottom: 0.5em;
+}
+
+textarea {
+    resize: vertical;
+}
+
+button {
+    background: var(--robco-green);
+    color: var(--bg-color);
+    font-family: var(--terminal-font-family);
+    font-size: 0.85em;
+    border: none;
+    padding: 0.25em 0.5em;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Forces embedded videos and audio players into RobCo Monochrome Green */
+.robco-media-player {
+    width: 100%;
+    max-width: calc(var(--terminal-cols) * 1ch);
+    max-height: 12em;
+    margin-top: 0.5em;
+    border: 2px solid var(--robco-green);
+    box-shadow: 0 0 15px var(--robco-glow);
+    background: #000;
+    filter: sepia(100%) hue-rotate(70deg) saturate(300%) contrast(120%);
+}
+
+/* --- ROBCO HOLOTAPE DECK UI --- */
+.holotape-deck {
+    border: 2px solid var(--robco-green);
+    padding: 0.5em;
+    margin-top: 0.5em;
+    background: rgba(0, 20, 5, 0.4);
+    box-shadow: 0 0 15px var(--robco-glow), inset 0 0 15px var(--robco-glow);
+    max-width: calc(var(--terminal-cols) * 1ch);
+    font-family: var(--terminal-font-family);
+}
+
+.holotape-header {
+    border-bottom: 1px dashed var(--robco-green);
+    padding-bottom: 0.25em;
+    margin-bottom: 0.5em;
+    display: grid;
+    grid-template-columns: 1fr;
+    font-size: 0.9em;
+    text-shadow: 0 0 5px var(--robco-glow);
+}
+
+.holotape-bar-container {
+    border: 2px solid var(--robco-green);
+    height: 1em;
+    width: 100%;
+    margin: 0.5em 0;
+    background: #000;
+    padding: 2px;
+}
+
+.holotape-bar-fill {
+    background: var(--robco-green);
+    height: 100%;
+    width: 0%;
+    box-shadow: 0 0 8px var(--robco-green);
+    transition: width 0.1s linear;
+}
+
+.holotape-controls {
+    display: flex;
+    gap: 0.5ch;
+    align-items: center;
+}
+
+.holotape-btn {
+    background: #000;
+    color: var(--robco-green);
+    border: 2px solid var(--robco-green);
+    padding: 0.15em 0.5em;
+    font-family: var(--terminal-font-family);
+    font-size: 0.85em;
+    cursor: pointer;
+    text-shadow: 0 0 5px var(--robco-glow);
+    box-shadow: 0 0 5px var(--robco-glow);
+}
+
+.holotape-btn:hover {
+    background: var(--robco-green);
+    color: #000;
+    text-shadow: none;
+}
+
+
+.hidden-media-element {
+    display: none;
+}
+
+.terminal-inline-btn {
+    background: transparent;
+    color: var(--robco-green);
+    border: none;
+    font-family: var(--terminal-font-family);
+    font-size: 1em;
+    padding: 0;
+    cursor: pointer;
+    text-shadow: 0 0 5px var(--robco-glow);
+}
+
+.terminal-inline-btn:hover:not(:disabled),
+.terminal-inline-btn:focus-visible:not(:disabled) {
+    background: var(--robco-green);
+    color: var(--bg-color);
+    outline: none;
+}
+
+button:disabled,
+.terminal-inline-btn:disabled,
+.holotape-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.menu-page-controls {
+    display: flex;
+    gap: 1ch;
+    align-items: center;
+    cursor: default !important;
+}
+
+.menu-page-controls:hover {
+    background: transparent !important;
+    color: var(--robco-green) !important;
+}
+
+.terminal-pager {
+    max-width: calc(var(--terminal-cols) * 1ch);
+    overflow: hidden;
+}
+
+.terminal-pager-title,
+.terminal-page-meta {
+    height: 1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.terminal-pager-title {
+    color: #fff;
+}
+
+.terminal-page-text {
+    height: calc(var(--page-text-rows) * 1em);
+    max-height: calc(var(--page-text-rows) * 1em);
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-family: var(--terminal-font-family);
+    font-size: 1em;
+    line-height: 1;
+    color: var(--robco-green);
+    background: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+.terminal-page-meta {
+    color: #888;
+}
+
+.terminal-pager-controls {
+    height: 1.15em;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5ch;
+    overflow: hidden;
+}
+
+.holotape-track,
+.deck-timer {
+    color: #888;
+    font-size: 0.85em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.deck-timer {
+    margin-left: auto;
+}
+
+/* Full-screen video mode. Native browser controls are disabled in JS. */
+.video-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 1em;
+    padding: 1em;
+    background: #000;
+    color: var(--robco-green);
+    font-family: var(--terminal-font-family);
+    text-shadow: 0 0 8px var(--robco-glow);
+    overflow: hidden;
+}
+
+.video-fullscreen::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 10;
+    background-size: 100% 4px, 6px 100%;
+    pointer-events: none;
+}
+
+.video-frame-wrap {
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 4px solid var(--robco-green);
+    box-shadow: 0 0 20px var(--robco-glow), inset 0 0 30px var(--robco-glow);
+    background: #000;
+    overflow: hidden;
+}
+
+.robco-video-screen {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    filter: sepia(100%) hue-rotate(70deg) saturate(300%) contrast(120%);
+}
+
+.video-control-deck {
+    position: relative;
+    z-index: 20;
+    border: 2px solid var(--robco-green);
+    padding: 0.5em;
+    background: rgba(0, 20, 5, 0.65);
+    box-shadow: 0 0 15px var(--robco-glow), inset 0 0 15px var(--robco-glow);
+}
+
+.video-status-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 2ch;
+    border-bottom: 1px dashed var(--robco-green);
+    padding-bottom: 0.25em;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.video-progress-wrap {
+    margin: 0.5em 0;
+}
+
+.video-controls {
+    min-height: 1em;
+}
+
+.terminal-pager-controls .holotape-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.35em;
+    line-height: 0.9;
+    border-width: 1px;
+    padding: 0.06em 0.35em 0.18em;
+    font-size: 0.75em;
+}
+
+.admin-edit-banner {
+    border: 2px dashed var(--robco-green);
+    background: rgba(0, 20, 5, 0.55);
+    color: #fff;
+    margin: 0.75em 0 0.5em;
+    padding: 0.25em 0.5em;
+    text-shadow: 0 0 5px var(--robco-glow);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.admin-editing-row {
+    background: rgba(24, 255, 98, 0.12);
+    box-shadow: inset 0 0 10px var(--robco-glow);
+}
+
+select:disabled,
+input:disabled,
+textarea:disabled,
+button:disabled {
+    opacity: 0.45;
+}
+
+/* --- ADMIN DIRECTORY BROWSER --- */
+.admin-browser-header,
+.admin-memory-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1ch;
+    border-bottom: 1px solid #113311;
+    padding: 0.25em 0;
+}
+
+.admin-browser-header:hover,
+.admin-empty-row:hover {
+    background: transparent !important;
+    color: var(--robco-green) !important;
+}
+
+.admin-browser-path {
+    min-width: 0;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.admin-browser-hint {
+    color: #888;
+    font-size: 0.75em;
+    margin-top: 0.15em;
+}
+
+.admin-browser-controls,
+.admin-row-controls {
+    display: flex;
+    gap: 0.25em;
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+.admin-memory-label {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-right: 1ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.admin-mini-btn {
+    padding: 0.1em 0.4em;
+    font-size: 0.7em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.admin-empty-row {
+    color: #888;
+    cursor: default !important;
+    padding: 0.25em 0;
+}
+
+
+/* --- READABLE ADMIN BACKEND OVERRIDES ---
+   Keep the public terminal aesthetic intact, but make the Overseer/admin
+   tools behave like a compact management panel instead of a 22-row terminal. */
+#admin-interface {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.58em;
+    line-height: 1.35;
+    text-shadow: none;
+    overflow-y: auto;
+    padding-right: 0.6rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--robco-green) transparent;
+}
+
+#admin-interface::-webkit-scrollbar {
+    display: block;
+    width: 0.45rem;
+}
+
+#admin-interface::-webkit-scrollbar-thumb {
+    background: var(--robco-green);
+}
+
+#admin-interface p,
+#admin-interface label {
+    max-width: none;
+}
+
+#admin-interface label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+#admin-interface input,
+#admin-interface select,
+#admin-interface textarea,
+#admin-interface button {
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+    text-shadow: none;
+}
+
+#admin-interface input,
+#admin-interface select,
+#admin-interface textarea {
+    padding: 0.45rem 0.55rem !important;
+    margin-bottom: 0.75rem;
+    min-height: 2.2rem;
+}
+
+#admin-interface textarea {
+    min-height: 7rem;
+}
+
+#admin-interface button {
+    min-height: 2rem;
+    padding: 0.4rem 0.65rem !important;
+}
+
+#admin-interface .menu-list {
+    margin-top: 0.5rem;
+}
+
+#admin-interface .menu-list li {
+    height: auto;
+    min-height: 2.35rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+#admin-interface .menu-list li:hover {
+    background-color: transparent;
+    color: var(--robco-green);
+}
+
+#admin-delete-list {
+    border: 1px solid rgba(24, 255, 98, 0.32);
+    background: rgba(0, 20, 5, 0.22);
+}
+
+.admin-browser-header,
+.admin-memory-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid rgba(24, 255, 98, 0.22);
+}
+
+.admin-browser-path,
+.admin-memory-label {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    min-width: 0;
+}
+
+.admin-memory-label {
+    line-height: 1.2;
+    word-break: break-word;
+    padding-right: 0;
+}
+
+.admin-browser-hint {
+    font-size: 0.82rem;
+    line-height: 1.25;
+    margin-top: 0.2rem;
+}
+
+.admin-browser-controls,
+.admin-row-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+}
+
+.admin-mini-btn {
+    min-width: 2.4rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.88rem !important;
+    line-height: 1.1 !important;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.admin-edit-banner {
+    white-space: normal;
+    line-height: 1.25;
+    padding: 0.5rem 0.65rem;
+}
+
+.admin-empty-row {
+    padding: 0.6rem 0.5rem;
+}
+
+@media (max-width: 900px) {
+    .admin-browser-header,
+    .admin-memory-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .admin-browser-controls,
+    .admin-row-controls {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}

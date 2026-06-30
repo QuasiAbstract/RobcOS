@@ -34,6 +34,20 @@ Then open the page locally and press `Ctrl+Shift+A` to access the admin console.
 
 Before sharing publicly, set it back to `false`.
 
+
+## Public keyboard controls
+
+The public terminal can be navigated without a mouse:
+
+- `↑` / `↓`: move the highlighted menu cursor
+- `Enter`: open the highlighted directory or entry
+- `←` / `→`: previous or next menu/text page
+- `PageUp` / `PageDown`: previous or next menu/text page
+- `Space`: continue text pages or pause/play video
+- `Esc` / `Backspace`: return from text or move up one directory
+- `P` / `R`: pause/play or restart an audio holotape while its transcript is open
+- `S`: stop video playback
+
 ## Folder layout
 
 ```text
@@ -63,4 +77,4 @@ http://localhost:8000
 
 ## Included demo content
 
-The base `index.html` is seeded with the proof-of-concept entries from `robco_terminal_backup.json`, including the public notices, security logs, and corrupt medical record directories. Fresh visitors do not need to import a backup file to see these entries.
+The base `index.html` is seeded with the proof-of-concept entries from `robco_terminal_backup.json`, including the public notices, security logs, and corrupt medical record directories. The Public Notices directory also includes the Katherine Sundsted public-menace notice. Fresh visitors do not need to import a backup file to see these entries.

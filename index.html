@@ -102,6 +102,12 @@
                                 "title": "OVERSEER_MESSAGE",
                                 "mediaPath": "holotapes/overseer.mp4",
                                 "content": ""
+                        },
+                        {
+                                "id": "1782860447001",
+                                "type": "FILE",
+                                "title": "PUBLIC_MENACE_NOTICE:_KATHERINE_SUNDSTED",
+                                "content": "PUBLIC NOTICE TO ALL RESIDENTS\n\nVault Security has received multiple reports concerning Katherine Sundsted, a strange hobbit-like creature observed causing repeated disturbances throughout residential and maintenance sectors. Residents are advised not to feed, encourage, bargain with, or form adventuring parties around the subject.\n\nReported incidents include automated wagon systems failing without warning, curtain assemblies detaching from their rails, and lighting systems flickering, dimming, or cycling through emergency modes in areas where Sundsted has recently been sighted. Engineering suspects deliberate interference, improbable luck, or both.\n\nSundsted has also made several attempts to murder innocent residents. These attempts have, to date, been unsuccessful due to the subject's limited reach, poor leverage, and the ease with which she can generally be swatted away from the ankles. This should not be interpreted as clearance to provoke her.\n\nIf Sundsted is encountered, remain calm, secure loose fabric, avoid standing near wagons, and contact Vault Security. Do not attempt heroics unless equipped with a broom, clipboard, or other approved shooing implement.\n\n-- Office of Public Safety"
                         }
                 ]
         },
@@ -146,7 +152,7 @@
     const MENU_ITEMS_PER_PAGE = 12;
     const FILE_TEXT_ROWS = 14;
     const AUDIO_TEXT_ROWS = 7;
-    const STORAGE_KEY = 'robco_db_v3';
+    const STORAGE_KEY = 'robco_db_v4';
 
     function cloneDefaultLogs() {
         return JSON.parse(JSON.stringify(DEFAULT_LOGS));
@@ -169,6 +175,8 @@
     let navigationStack = [];
     let adminNavigationStack = [];
     let directoryPageIndex = 0;
+    let publicMenuEntries = [];
+    let selectedMenuIndex = 0;
     let editingEntryPath = null;
     let activeTypewriterTimer = null;
     let activeTextPager = null;
@@ -269,6 +277,10 @@
         publicInterface.classList.toggle('terminal-mode-reader', mode === 'reader');
     }
 
+    function isPublicInterfaceVisible() {
+        return publicInterface && !publicInterface.classList.contains('hidden');
+    }
+
     function clearTypewriter() {
         if (activeTypewriterTimer) {
             clearTimeout(activeTypewriterTimer);
@@ -322,6 +334,7 @@
                     playTerminalClick();
                     navigationStack.pop();
                     directoryPageIndex = 0;
+                    selectedMenuIndex = 0;
                     renderMenu();
                 }
             });
@@ -336,6 +349,7 @@
                         playTerminalClick();
                         navigationStack.push(index);
                         directoryPageIndex = 0;
+                        selectedMenuIndex = 0;
                         renderMenu();
                     }
                 });
@@ -349,18 +363,36 @@
             }
         });
 
-        const totalPages = Math.max(1, Math.ceil(menuEntries.length / MENU_ITEMS_PER_PAGE));
+        publicMenuEntries = menuEntries;
+
+        const totalPages = getDirectoryTotalPages();
         directoryPageIndex = Math.min(directoryPageIndex, totalPages - 1);
         const start = directoryPageIndex * MENU_ITEMS_PER_PAGE;
         const visibleEntries = menuEntries.slice(start, start + MENU_ITEMS_PER_PAGE);
 
-        visibleEntries.forEach(entry => {
+        if (visibleEntries.length === 0) {
             const li = document.createElement('li');
-            li.textContent = entry.label;
-            if (entry.color) li.style.color = entry.color;
-            li.onclick = entry.handler;
+            li.textContent = '> NO FILES DETECTED';
+            li.style.color = '#888';
+            li.style.cursor = 'default';
             menuElement.appendChild(li);
-        });
+            selectedMenuIndex = 0;
+        } else {
+            selectedMenuIndex = Math.max(0, Math.min(selectedMenuIndex, visibleEntries.length - 1));
+
+            visibleEntries.forEach((entry, visibleIndex) => {
+                const li = document.createElement('li');
+                li.textContent = entry.label;
+                li.dataset.publicMenuIndex = visibleIndex.toString();
+                if (entry.color) li.style.color = entry.color;
+                if (visibleIndex === selectedMenuIndex) li.classList.add('terminal-selected');
+                li.onclick = () => {
+                    selectedMenuIndex = visibleIndex;
+                    entry.handler();
+                };
+                menuElement.appendChild(li);
+            });
+        }
 
         if (totalPages > 1) {
             const navLi = document.createElement('li');
@@ -394,18 +426,91 @@
         }
     }
 
+    function getDirectoryTotalPages() {
+        return Math.max(1, Math.ceil(publicMenuEntries.length / MENU_ITEMS_PER_PAGE));
+    }
+
+    function refreshSelectedMenuRow() {
+        menuElement.querySelectorAll('li[data-public-menu-index]').forEach(row => {
+            row.classList.toggle('terminal-selected', Number(row.dataset.publicMenuIndex) === selectedMenuIndex);
+        });
+    }
+
+    function getVisibleMenuEntryCount() {
+        const start = directoryPageIndex * MENU_ITEMS_PER_PAGE;
+        return publicMenuEntries.slice(start, start + MENU_ITEMS_PER_PAGE).length;
+    }
+
+    function movePublicMenuSelection(delta) {
+        const visibleCount = getVisibleMenuEntryCount();
+        if (visibleCount <= 0) return;
+        playTerminalClick();
+        selectedMenuIndex = (selectedMenuIndex + delta + visibleCount) % visibleCount;
+        refreshSelectedMenuRow();
+    }
+
+    function activateSelectedPublicMenuItem() {
+        const entryIndex = (directoryPageIndex * MENU_ITEMS_PER_PAGE) + selectedMenuIndex;
+        const entry = publicMenuEntries[entryIndex];
+        if (entry && typeof entry.handler === 'function') entry.handler();
+    }
+
+    function returnToPreviousPublicDirectory() {
+        if (navigationStack.length <= 0) return;
+        playTerminalClick();
+        navigationStack.pop();
+        directoryPageIndex = 0;
+        selectedMenuIndex = 0;
+        renderMenu();
+    }
+
+    function handlePublicMenuKey(event) {
+        const key = event.key;
+        const totalPages = getDirectoryTotalPages();
+
+        if (key === 'ArrowDown') {
+            event.preventDefault();
+            movePublicMenuSelection(1);
+        } else if (key === 'ArrowUp') {
+            event.preventDefault();
+            movePublicMenuSelection(-1);
+        } else if (key === 'Enter') {
+            event.preventDefault();
+            activateSelectedPublicMenuItem();
+        } else if (key === 'ArrowRight' || key === 'PageDown') {
+            event.preventDefault();
+            nextDirectoryPage(totalPages);
+        } else if (key === 'ArrowLeft' || key === 'PageUp') {
+            event.preventDefault();
+            previousDirectoryPage();
+        } else if (key === 'Escape' || key === 'Backspace') {
+            event.preventDefault();
+            returnToPreviousPublicDirectory();
+        } else if (key === 'Home') {
+            event.preventDefault();
+            selectedMenuIndex = 0;
+            refreshSelectedMenuRow();
+        } else if (key === 'End') {
+            event.preventDefault();
+            selectedMenuIndex = Math.max(0, getVisibleMenuEntryCount() - 1);
+            refreshSelectedMenuRow();
+        }
+    }
+
     function previousDirectoryPage() {
         if (directoryPageIndex > 0) {
             playTerminalClick();
             directoryPageIndex--;
+            selectedMenuIndex = 0;
             renderMenu();
         }
     }
 
-    function nextDirectoryPage(totalPages) {
+    function nextDirectoryPage(totalPages = getDirectoryTotalPages()) {
         if (directoryPageIndex < totalPages - 1) {
             playTerminalClick();
             directoryPageIndex++;
+            selectedMenuIndex = 0;
             renderMenu();
         }
     }
@@ -837,25 +942,42 @@
         }
 
         if (activeVideoOverlay) {
-            if (event.key === 'Escape') closeVideoPlayback();
-            if (event.key === ' ') {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeVideoPlayback();
+            } else if (event.key === ' ' || event.key === 'Enter') {
                 event.preventDefault();
                 toggleVideoPlayback();
+            } else if (event.key === 's' || event.key === 'S') {
+                event.preventDefault();
+                stopVideoPlayback();
             }
             return;
         }
 
-        if (activeTextPager && !document.getElementById('public-interface').classList.contains('hidden')) {
-            if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+        if (!isPublicInterfaceVisible()) return;
+
+        if (activeTextPager) {
+            if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ' || event.key === 'Enter') {
                 event.preventDefault();
                 nextTextPage();
             } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
                 event.preventDefault();
                 previousTextPage();
-            } else if (event.key === 'Escape') {
+            } else if (event.key === 'Escape' || event.key === 'Backspace') {
+                event.preventDefault();
                 renderMenu();
+            } else if (event.key === 'p' || event.key === 'P') {
+                event.preventDefault();
+                toggleHolotape();
+            } else if (event.key === 'r' || event.key === 'R') {
+                event.preventDefault();
+                restartHolotape();
             }
+            return;
         }
+
+        handlePublicMenuKey(event);
     });
 
     function toggleAdminMode() {
@@ -873,6 +995,7 @@
             modeLabel.textContent = 'MODE: PUBLIC';
             navigationStack = [];
             directoryPageIndex = 0;
+            selectedMenuIndex = 0;
             renderMenu();
         } else {
             modeLabel.textContent = 'MODE: OVERSEER ADMIN';
@@ -1195,6 +1318,7 @@
                     navigationStack = [];
                     adminNavigationStack = [];
                     directoryPageIndex = 0;
+                    selectedMenuIndex = 0;
                     cancelEditEntry(true);
                     saveDatabase();
                     renderMenu();
@@ -1348,10 +1472,12 @@
         if (confirm('WARNING: Wipe working memory and restore RobCo factory defaults?')) {
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem('robco_db_v2');
+            localStorage.removeItem('robco_db_v3');
             terminalDatabase = cloneDefaultLogs();
             navigationStack = [];
             adminNavigationStack = [];
             directoryPageIndex = 0;
+            selectedMenuIndex = 0;
             cancelEditEntry(true);
             renderMenu();
             toggleAdminMode();

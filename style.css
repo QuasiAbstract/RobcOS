@@ -161,9 +161,16 @@ br {
     text-overflow: clip;
 }
 
-.menu-list li:hover {
+.menu-list li:hover,
+.menu-list li.terminal-selected {
     background-color: var(--robco-green);
-    color: var(--bg-color);
+    color: var(--bg-color) !important;
+    text-shadow: none;
+}
+
+.menu-list li.terminal-selected::after {
+    content: "_";
+    margin-left: 1ch;
 }
 
 /* Content Output Area */

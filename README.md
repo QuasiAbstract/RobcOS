@@ -41,6 +41,8 @@ The public terminal can be navigated without a mouse:
 
 Public-facing buttons show their keyboard shortcut in the label, for example `[P] PAUSE`.
 
+On the first viewing of a text entry, the typewriter animation plays. While text is still printing, `Enter`, `Space`, `→`, or the continue/next controls complete the current page instead of advancing. The next press advances normally. After an entry has been opened once during the session, its pages display immediately on later viewings.
+
 - `↑` / `↓`: move the highlighted menu cursor
 - `Enter`: open the highlighted directory or entry
 - `←` / `→`: previous or next menu/text page

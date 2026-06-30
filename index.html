@@ -179,12 +179,17 @@
     let selectedMenuIndex = 0;
     let editingEntryPath = null;
     let activeTypewriterTimer = null;
+    let activeTypewriterTarget = null;
+    let activeTypewriterFullText = '';
+    let activeTypewriterOnComplete = null;
     let activeTextPager = null;
+    let viewedTextAnimationKeys = new Set();
     let activeVideoOverlay = null;
     let activeVideoElem = null;
     let activeVideoInterval = null;
     let activeVideoTranscript = '';
     let activeVideoTitle = '';
+    let activeVideoAnimationKey = '';
 
     const terminalSurface = document.querySelector('.crt-monitor');
     const publicInterface = document.getElementById('public-interface');
@@ -286,6 +291,36 @@
             clearTimeout(activeTypewriterTimer);
             activeTypewriterTimer = null;
         }
+        activeTypewriterTarget = null;
+        activeTypewriterFullText = '';
+        activeTypewriterOnComplete = null;
+    }
+
+    function completeActiveTypewriter() {
+        if (!activeTypewriterTarget) return false;
+
+        if (activeTypewriterTimer) {
+            clearTimeout(activeTypewriterTimer);
+            activeTypewriterTimer = null;
+        }
+
+        const target = activeTypewriterTarget;
+        const fullText = activeTypewriterFullText;
+        const onComplete = activeTypewriterOnComplete;
+
+        target.textContent = fullText;
+        activeTypewriterTarget = null;
+        activeTypewriterFullText = '';
+        activeTypewriterOnComplete = null;
+
+        if (typeof onComplete === 'function') onComplete();
+        return true;
+    }
+
+    function isCurrentTextPageAnimating() {
+        return Boolean(activeTextPager
+            && activeTextPager.currentTextNode
+            && activeTypewriterTarget === activeTextPager.currentTextNode);
     }
 
     function stopAudioPlayback() {
@@ -588,7 +623,8 @@
                 title: `TRANSCRIPT: ${item.title}`,
                 text: item.content || 'No transcript data.',
                 rowsPerPage: AUDIO_TEXT_ROWS,
-                prefixNodes: [deck, audioElem]
+                prefixNodes: [deck, audioElem],
+                animationKey: `audio:${item.id || item.title}`
             });
         } else if (item.type === 'VIDEO') {
             openVideoPlayer(item);
@@ -597,7 +633,8 @@
                 title: item.title,
                 text: item.content || 'No text data.',
                 rowsPerPage: FILE_TEXT_ROWS,
-                prefixNodes: []
+                prefixNodes: [],
+                animationKey: `file:${item.id || item.title}`
             });
         }
     }
@@ -639,21 +676,61 @@
         return pages.length ? pages : [''];
     }
 
-    function openPagedText({ title, text, rowsPerPage, prefixNodes = [] }) {
+    function openPagedText({ title, text, rowsPerPage, prefixNodes = [], animationKey = '' }) {
         clearTypewriter();
         setPublicMode('reader');
         menuElement.innerHTML = '';
         outputElement.innerHTML = '';
+
+        const resolvedAnimationKey = animationKey || `text:${title}:${String(text || '').length}`;
+        const shouldAnimateThisViewing = !viewedTextAnimationKeys.has(resolvedAnimationKey);
+        viewedTextAnimationKeys.add(resolvedAnimationKey);
 
         activeTextPager = {
             title,
             pages: paginateTerminalText(text, rowsPerPage),
             pageIndex: 0,
             rowsPerPage,
-            prefixNodes
+            prefixNodes,
+            animationKey: resolvedAnimationKey,
+            animateThisViewing: shouldAnimateThisViewing,
+            revealedPages: new Set(),
+            currentTextNode: null,
+            controlRefs: null
         };
 
         renderCurrentTextPage();
+    }
+
+    function shouldAnimateCurrentTextPage() {
+        return Boolean(activeTextPager
+            && activeTextPager.animateThisViewing
+            && !activeTextPager.revealedPages.has(activeTextPager.pageIndex));
+    }
+
+    function markCurrentTextPageRevealed() {
+        if (!activeTextPager) return;
+        activeTextPager.revealedPages.add(activeTextPager.pageIndex);
+        updateTextPagerControls();
+    }
+
+    function updateTextPagerControls() {
+        if (!activeTextPager || !activeTextPager.controlRefs) return;
+
+        const { nextBtn, continueBtn } = activeTextPager.controlRefs;
+        const atEnd = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
+        const animating = isCurrentTextPageAnimating();
+
+        nextBtn.textContent = animating ? '[→] COMPLETE' : '[→] NEXT';
+        nextBtn.disabled = !animating && atEnd;
+
+        if (animating) {
+            continueBtn.textContent = '[ENT] COMPLETE';
+            continueBtn.disabled = false;
+        } else {
+            continueBtn.textContent = atEnd ? '[EOF]' : '[ENT] CONTINUE';
+            continueBtn.disabled = atEnd;
+        }
     }
 
     function renderCurrentTextPage() {
@@ -673,6 +750,7 @@
 
         const textNode = document.createElement('pre');
         textNode.className = 'terminal-page-text';
+        activeTextPager.currentTextNode = textNode;
 
         const meta = document.createElement('div');
         meta.className = 'terminal-page-meta';
@@ -689,15 +767,11 @@
 
         const nextBtn = document.createElement('button');
         nextBtn.className = 'holotape-btn';
-        nextBtn.textContent = '[→] NEXT';
-        nextBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
-        nextBtn.onclick = nextTextPage;
+        nextBtn.onclick = advanceOrCompleteTextPage;
 
         const continueBtn = document.createElement('button');
         continueBtn.className = 'holotape-btn';
-        continueBtn.textContent = activeTextPager.pageIndex >= activeTextPager.pages.length - 1 ? '[EOF]' : '[ENT] CONTINUE';
-        continueBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
-        continueBtn.onclick = nextTextPage;
+        continueBtn.onclick = advanceOrCompleteTextPage;
 
         const returnBtn = document.createElement('button');
         returnBtn.className = 'holotape-btn';
@@ -718,7 +792,17 @@
         pager.appendChild(controls);
         outputElement.appendChild(pager);
 
-        typeWriterEffect(activeTextPager.pages[activeTextPager.pageIndex], textNode);
+        activeTextPager.controlRefs = { nextBtn, continueBtn };
+
+        const pageText = activeTextPager.pages[activeTextPager.pageIndex];
+        if (shouldAnimateCurrentTextPage()) {
+            updateTextPagerControls();
+            typeWriterEffect(pageText, textNode, markCurrentTextPageRevealed);
+            updateTextPagerControls();
+        } else {
+            textNode.textContent = pageText;
+            markCurrentTextPageRevealed();
+        }
     }
 
     function previousTextPage() {
@@ -726,6 +810,19 @@
         playTerminalClick();
         activeTextPager.pageIndex--;
         renderCurrentTextPage();
+    }
+
+    function advanceOrCompleteTextPage() {
+        if (!activeTextPager) return;
+
+        if (isCurrentTextPageAnimating()) {
+            playTerminalClick();
+            completeActiveTypewriter();
+            updateTextPagerControls();
+            return;
+        }
+
+        nextTextPage();
     }
 
     function nextTextPage() {
@@ -763,20 +860,25 @@
         }
     }
 
-    function typeWriterEffect(text, targetNode) {
+    function typeWriterEffect(text, targetNode, onComplete = null) {
         clearTypewriter();
         targetNode.textContent = '';
+        activeTypewriterTarget = targetNode;
+        activeTypewriterFullText = String(text);
+        activeTypewriterOnComplete = onComplete;
         let i = 0;
 
         function type() {
-            if (i < text.length) {
-                const char = text.charAt(i);
+            if (targetNode !== activeTypewriterTarget) return;
+
+            if (i < activeTypewriterFullText.length) {
+                const char = activeTypewriterFullText.charAt(i);
                 targetNode.textContent += char;
                 if (char.trim() !== '') playTerminalClick();
                 i++;
                 activeTypewriterTimer = setTimeout(type, 18);
             } else {
-                activeTypewriterTimer = null;
+                completeActiveTypewriter();
             }
         }
 
@@ -786,6 +888,7 @@
     function openVideoPlayer(item) {
         activeVideoTranscript = item.content || '';
         activeVideoTitle = item.title || 'VIDEO RECORDING';
+        activeVideoAnimationKey = `video:${item.id || activeVideoTitle}`;
 
         const overlay = document.createElement('div');
         overlay.className = 'video-fullscreen';
@@ -912,7 +1015,8 @@
                 title: `TRANSCRIPT: ${activeVideoTitle}`,
                 text: activeVideoTranscript,
                 rowsPerPage: FILE_TEXT_ROWS,
-                prefixNodes: []
+                prefixNodes: [],
+                animationKey: activeVideoAnimationKey || `video:${activeVideoTitle}`
             });
         } else {
             renderMenu();
@@ -964,7 +1068,7 @@
         if (activeTextPager) {
             if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ' || event.key === 'Enter') {
                 event.preventDefault();
-                nextTextPage();
+                advanceOrCompleteTextPage();
             } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
                 event.preventDefault();
                 previousTextPage();

@@ -327,7 +327,7 @@
 
         if (navigationStack.length > 0) {
             menuEntries.push({
-                label: '> [ RETURN TO PREVIOUS DIRECTORY ]',
+                label: '> [ESC] RETURN TO PREVIOUS DIRECTORY',
                 type: 'ACTION',
                 color: '#fff',
                 handler: () => {
@@ -402,7 +402,7 @@
 
             const prevBtn = document.createElement('button');
             prevBtn.className = 'terminal-inline-btn';
-            prevBtn.textContent = '[<]';
+            prevBtn.textContent = '[←] PREV';
             prevBtn.disabled = directoryPageIndex === 0;
             prevBtn.onclick = (event) => {
                 event.stopPropagation();
@@ -414,7 +414,7 @@
 
             const nextBtn = document.createElement('button');
             nextBtn.className = 'terminal-inline-btn';
-            nextBtn.textContent = '[>]';
+            nextBtn.textContent = '[→] NEXT';
             nextBtn.disabled = directoryPageIndex >= totalPages - 1;
             nextBtn.onclick = (event) => {
                 event.stopPropagation();
@@ -548,8 +548,8 @@
                 </div>
 
                 <div class="holotape-controls">
-                    <button class="holotape-btn" id="play-pause-btn" onclick="toggleHolotape()">[ PAUSE ]</button>
-                    <button class="holotape-btn" onclick="restartHolotape()">[ RESTART ]</button>
+                    <button class="holotape-btn" id="play-pause-btn" onclick="toggleHolotape()">[P] PAUSE</button>
+                    <button class="holotape-btn" onclick="restartHolotape()">[R] RESTART</button>
                     <span id="tape-timer" class="deck-timer">0:00 / 0:00</span>
                 </div>
             `;
@@ -573,12 +573,12 @@
 
             audioElem.onended = () => {
                 status.textContent = 'STATUS: STOPPED';
-                playBtn.textContent = '[ PLAY ]';
+                playBtn.textContent = '[P] PLAY';
             };
 
             audioElem.play().catch(() => {
                 status.textContent = 'STATUS: STANDBY';
-                playBtn.textContent = '[ PLAY ]';
+                playBtn.textContent = '[P] PLAY';
             });
 
             window.activeAudioElem = audioElem;
@@ -683,25 +683,25 @@
 
         const prevBtn = document.createElement('button');
         prevBtn.className = 'holotape-btn';
-        prevBtn.textContent = '[<]';
+        prevBtn.textContent = '[←] PREV';
         prevBtn.disabled = activeTextPager.pageIndex === 0;
         prevBtn.onclick = previousTextPage;
 
         const nextBtn = document.createElement('button');
         nextBtn.className = 'holotape-btn';
-        nextBtn.textContent = '[>]';
+        nextBtn.textContent = '[→] NEXT';
         nextBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
         nextBtn.onclick = nextTextPage;
 
         const continueBtn = document.createElement('button');
         continueBtn.className = 'holotape-btn';
-        continueBtn.textContent = activeTextPager.pageIndex >= activeTextPager.pages.length - 1 ? '[ EOF ]' : '[ CONTINUE ]';
+        continueBtn.textContent = activeTextPager.pageIndex >= activeTextPager.pages.length - 1 ? '[EOF]' : '[ENT] CONTINUE';
         continueBtn.disabled = activeTextPager.pageIndex >= activeTextPager.pages.length - 1;
         continueBtn.onclick = nextTextPage;
 
         const returnBtn = document.createElement('button');
         returnBtn.className = 'holotape-btn';
-        returnBtn.textContent = '[ RETURN ]';
+        returnBtn.textContent = '[ESC] RETURN';
         returnBtn.onclick = () => {
             playTerminalClick();
             renderMenu();
@@ -742,11 +742,11 @@
         if (window.activeAudioElem && btn) {
             if (window.activeAudioElem.paused) {
                 window.activeAudioElem.play();
-                btn.textContent = '[ PAUSE ]';
+                btn.textContent = '[P] PAUSE';
                 if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PLAYING';
             } else {
                 window.activeAudioElem.pause();
-                btn.textContent = '[ PLAY ]';
+                btn.textContent = '[P] PLAY';
                 if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PAUSED';
             }
         }
@@ -758,7 +758,7 @@
         if (window.activeAudioElem && btn) {
             window.activeAudioElem.currentTime = 0;
             window.activeAudioElem.play();
-            btn.textContent = '[ PAUSE ]';
+            btn.textContent = '[P] PAUSE';
             if (window.activeTapeStatus) window.activeTapeStatus.textContent = 'STATUS: PLAYING';
         }
     }
@@ -802,9 +802,9 @@
                     <div class="holotape-bar-fill" id="video-progress"></div>
                 </div>
                 <div class="holotape-controls video-controls">
-                    <button class="holotape-btn" id="video-play-btn" onclick="toggleVideoPlayback()">[ PAUSE ]</button>
-                    <button class="holotape-btn" onclick="stopVideoPlayback()">[ STOP ]</button>
-                    <button class="holotape-btn" onclick="closeVideoPlayback()">[ EXIT ]</button>
+                    <button class="holotape-btn" id="video-play-btn" onclick="toggleVideoPlayback()">[P] PAUSE</button>
+                    <button class="holotape-btn" onclick="stopVideoPlayback()">[S] STOP</button>
+                    <button class="holotape-btn" onclick="closeVideoPlayback()">[ESC] EXIT</button>
                     <span id="video-timer" class="deck-timer">0:00 / 0:00</span>
                 </div>
             </div>
@@ -835,7 +835,7 @@
         activeVideoElem.addEventListener('timeupdate', updateVideoDeck);
         activeVideoElem.addEventListener('ended', () => {
             status.textContent = 'STATUS: STOPPED';
-            playBtn.textContent = '[ PLAY ]';
+            playBtn.textContent = '[P] PLAY';
             updateVideoDeck();
         });
 
@@ -843,7 +843,7 @@
 
         activeVideoElem.play().catch(() => {
             status.textContent = 'STATUS: STANDBY';
-            playBtn.textContent = '[ PLAY ]';
+            playBtn.textContent = '[P] PLAY';
         });
 
         if (overlay.requestFullscreen) {
@@ -861,11 +861,11 @@
         if (activeVideoElem.paused || activeVideoElem.ended) {
             activeVideoElem.play();
             status.textContent = 'STATUS: PLAYING';
-            playBtn.textContent = '[ PAUSE ]';
+            playBtn.textContent = '[P] PAUSE';
         } else {
             activeVideoElem.pause();
             status.textContent = 'STATUS: PAUSED';
-            playBtn.textContent = '[ PLAY ]';
+            playBtn.textContent = '[P] PLAY';
         }
     }
 
@@ -879,7 +879,7 @@
         activeVideoElem.pause();
         activeVideoElem.currentTime = 0;
         status.textContent = 'STATUS: STOPPED';
-        playBtn.textContent = '[ PLAY ]';
+        playBtn.textContent = '[P] PLAY';
     }
 
     function closeVideoPlayback() {
@@ -949,7 +949,7 @@
             if (event.key === 'Escape') {
                 event.preventDefault();
                 closeVideoPlayback();
-            } else if (event.key === ' ' || event.key === 'Enter') {
+            } else if (event.key === ' ' || event.key === 'Enter' || event.key === 'p' || event.key === 'P') {
                 event.preventDefault();
                 toggleVideoPlayback();
             } else if (event.key === 's' || event.key === 'S') {

@@ -223,6 +223,7 @@ br {
     max-width: calc(var(--terminal-cols) * 1ch);
     overflow: hidden;
     text-shadow: 0 0 5px var(--robco-glow);
+    white-space: nowrap;
 }
 
 .hidden {
@@ -324,6 +325,7 @@ button {
     cursor: pointer;
     text-shadow: 0 0 5px var(--robco-glow);
     box-shadow: 0 0 5px var(--robco-glow);
+    white-space: nowrap;
 }
 
 .holotape-btn:hover {
@@ -346,6 +348,7 @@ button {
     padding: 0;
     cursor: pointer;
     text-shadow: 0 0 5px var(--robco-glow);
+    white-space: nowrap;
 }
 
 .terminal-inline-btn:hover:not(:disabled),

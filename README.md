@@ -39,13 +39,16 @@ Before sharing publicly, set it back to `false`.
 
 The public terminal can be navigated without a mouse:
 
+Public-facing buttons show their keyboard shortcut in the label, for example `[P] PAUSE`.
+
 - `↑` / `↓`: move the highlighted menu cursor
 - `Enter`: open the highlighted directory or entry
 - `←` / `→`: previous or next menu/text page
 - `PageUp` / `PageDown`: previous or next menu/text page
-- `Space`: continue text pages or pause/play video
+- `Enter` / `Space`: continue text pages or pause/play media
 - `Esc` / `Backspace`: return from text or move up one directory
-- `P` / `R`: pause/play or restart an audio holotape while its transcript is open
+- `P`: pause/play audio or video when media is open
+- `R`: restart an audio holotape while its transcript is open
 - `S`: stop video playback
 
 ## Folder layout

@@ -384,6 +384,8 @@
                 const li = document.createElement('li');
                 li.textContent = entry.label;
                 li.dataset.publicMenuIndex = visibleIndex.toString();
+                li.setAttribute('role', 'menuitem');
+                li.setAttribute('aria-selected', visibleIndex === selectedMenuIndex ? 'true' : 'false');
                 if (entry.color) li.style.color = entry.color;
                 if (visibleIndex === selectedMenuIndex) li.classList.add('terminal-selected');
                 li.onclick = () => {
@@ -432,7 +434,9 @@
 
     function refreshSelectedMenuRow() {
         menuElement.querySelectorAll('li[data-public-menu-index]').forEach(row => {
-            row.classList.toggle('terminal-selected', Number(row.dataset.publicMenuIndex) === selectedMenuIndex);
+            const isSelected = Number(row.dataset.publicMenuIndex) === selectedMenuIndex;
+            row.classList.toggle('terminal-selected', isSelected);
+            row.setAttribute('aria-selected', isSelected ? 'true' : 'false');
         });
     }
 

@@ -173,6 +173,50 @@ br {
     margin-left: 1ch;
 }
 
+/* Public keyboard cursor
+   The row highlight alone was too subtle on some displays/cache states, so the
+   public terminal now reserves a one-character gutter and draws an explicit
+   blinking cursor beside the currently selected keyboard row. Admin tables are
+   intentionally excluded. */
+#public-interface.terminal-mode-menu .menu-list li[data-public-menu-index] {
+    position: relative;
+    padding-left: 2ch;
+    color: var(--robco-green);
+}
+
+#public-interface.terminal-mode-menu .menu-list li[data-public-menu-index]::before {
+    content: " ";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1ch;
+    height: 1em;
+}
+
+#public-interface.terminal-mode-menu .menu-list li[data-public-menu-index].terminal-selected {
+    background-color: rgba(24, 255, 98, 0.16);
+    color: var(--robco-green) !important;
+    text-shadow: 0 0 7px var(--robco-glow);
+    box-shadow: inset 0 0 0 1px rgba(24, 255, 98, 0.42);
+}
+
+#public-interface.terminal-mode-menu .menu-list li[data-public-menu-index].terminal-selected::before {
+    content: "█";
+    color: var(--robco-green);
+    text-shadow: 0 0 8px var(--robco-glow);
+    animation: robco-menu-cursor-blink 1s steps(2, start) infinite;
+}
+
+#public-interface.terminal-mode-menu .menu-list li[data-public-menu-index].terminal-selected::after {
+    content: "";
+    margin-left: 0;
+}
+
+@keyframes robco-menu-cursor-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.28; }
+}
+
 /* Content Output Area */
 .content-area {
     margin-top: 1em;

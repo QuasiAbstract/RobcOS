@@ -88,15 +88,57 @@
     // Share/build switch:
     //   false = public demo mode; admin hotkey is disabled for viewers.
     //   true  = local editing mode; Ctrl+Shift+A opens the admin console.
-    const ENABLE_ADMIN_MODE = true;
+    const ENABLE_ADMIN_MODE = false;
 
     const DEFAULT_LOGS = [
-        { id: '1', type: 'FILE', title: "PARTY_MANIFEST.TXT", content: "Guest list confirmed. Cake hydration level: 98%.\nRadiation levels: Nominal." },
-        { id: '2', type: 'FILE', title: "SECURITY_NOTICE.LOG", content: "Reminder: Do not feed the Yao Guai stationed near the refreshments." },
-        { id: '3', type: 'DIRECTORY', title: "OVERSEER_ARCHIVE", children: [
-            { id: '3-1', type: 'FILE', title: "SECRET_RECIPE.TXT", content: "Nuka-Cola Quantum ingredient list:\n- Carbonated Water\n- Caramel Color\n- Aspartame\n- Strontium-90 (for glow)" }
-        ]}
-    ];
+        {
+                "id": "1782760281062",
+                "type": "DIRECTORY",
+                "title": "PUBLIC_NOTICES",
+                "children": [
+                        {
+                                "id": "1782762517702",
+                                "type": "VIDEO",
+                                "title": "OVERSEER_MESSAGE",
+                                "mediaPath": "holotapes/overseer.mp4",
+                                "content": ""
+                        }
+                ]
+        },
+        {
+                "id": "1782760248117",
+                "type": "DIRECTORY",
+                "title": "SECURITY_LOGS",
+                "children": [
+                        {
+                                "id": "1782763178613",
+                                "type": "AUDIO",
+                                "title": "SECURITY_ALERT",
+                                "mediaPath": "holotapes/security_alert.mp3",
+                                "content": ""
+                        },
+                        {
+                                "id": "1782783033665",
+                                "type": "FILE",
+                                "title": "SECURITY_ALERT_71:_MARCUS_HARROWER",
+                                "content": "NOTICE TO ALL SECURITY PERSONNEL\n\nBe advised that Marcus Harrower is banned from the power plant and the surrounding corridors. If any security officer finds Harrower in that area, he is to be escorted to the detention wing.\n\nAdditionally, be aware of Harrower's known associates - Leona Fox, Phineus Smith, and Dr. Shannon Dert. Immediately alert a supervisor if Fox, Smith, or Dr. Dert are spotted near the power plant. Monitor the associates, but do not engage unless the subjects interact with any Vault-Tec equipment in the area.\n\n-- Security Chief Arian"
+                        }
+                ]
+        },
+        {
+                "id": "1782760265653",
+                "type": "DIRECTORY",
+                "title": "MEDICAL_RECORDS_[CORRUPT]",
+                "children": [
+                        {
+                                "id": "1782760656708",
+                                "type": "FILE",
+                                "title": "O'NEILL,_QUINN_[CORRUPT]",
+                                "content": "###### UNEXPECTED END OF FILE ######"
+                        }
+                ]
+        }
+];
 
     const TERMINAL_COLS = 54;
     const TERMINAL_ROWS = 22;
@@ -104,8 +146,26 @@
     const MENU_ITEMS_PER_PAGE = 12;
     const FILE_TEXT_ROWS = 14;
     const AUDIO_TEXT_ROWS = 7;
+    const STORAGE_KEY = 'robco_db_v3';
 
-    let terminalDatabase = JSON.parse(localStorage.getItem('robco_db_v2')) || DEFAULT_LOGS;
+    function cloneDefaultLogs() {
+        return JSON.parse(JSON.stringify(DEFAULT_LOGS));
+    }
+
+    function loadDatabase() {
+        try {
+            const storedDatabase = localStorage.getItem(STORAGE_KEY);
+            if (storedDatabase) {
+                const parsedDatabase = JSON.parse(storedDatabase);
+                if (Array.isArray(parsedDatabase)) return parsedDatabase;
+            }
+        } catch (err) {
+            console.warn('Stored RobCo memory stack could not be loaded. Falling back to base entries.', err);
+        }
+        return cloneDefaultLogs();
+    }
+
+    let terminalDatabase = loadDatabase();
     let navigationStack = [];
     let adminNavigationStack = [];
     let directoryPageIndex = 0;
@@ -192,7 +252,7 @@
     // -------------------------
 
     function saveDatabase() {
-        localStorage.setItem('robco_db_v2', JSON.stringify(terminalDatabase));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(terminalDatabase));
     }
 
     function getCurrentDirectory() {
@@ -1286,8 +1346,9 @@
 
     function factoryReset() {
         if (confirm('WARNING: Wipe working memory and restore RobCo factory defaults?')) {
+            localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem('robco_db_v2');
-            terminalDatabase = JSON.parse(JSON.stringify(DEFAULT_LOGS));
+            terminalDatabase = cloneDefaultLogs();
             navigationStack = [];
             adminNavigationStack = [];
             directoryPageIndex = 0;

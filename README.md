@@ -60,3 +60,7 @@ Then visit:
 ```text
 http://localhost:8000
 ```
+
+## Included demo content
+
+The base `index.html` is seeded with the proof-of-concept entries from `robco_terminal_backup.json`, including the public notices, security logs, and corrupt medical record directories. Fresh visitors do not need to import a backup file to see these entries.
